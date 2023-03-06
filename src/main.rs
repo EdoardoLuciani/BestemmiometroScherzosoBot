@@ -1,17 +1,15 @@
 use dotenv;
-use std::sync::RwLock;
-use std::sync::Arc;
+use std::sync::{Mutex, Arc};
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
-    types::{InlineKeyboardButton, InlineKeyboardMarkup},
     utils::command::BotCommands,
 };
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub enum State {
     #[default]
     Start,
@@ -29,6 +27,7 @@ enum Command {
     Stop
 }
 
+type Conversation = Arc<Mutex<Vec<String>>>;
 
 #[tokio::main]
 async fn main() {
@@ -39,10 +38,8 @@ async fn main() {
 
     let bot = Bot::from_env();
 
-    let chat_history: RwLock<Vec<String>> = RwLock::new(Vec::new());
-
     Dispatcher::builder(bot, schema())
-    .dependencies(dptree::deps![InMemStorage::<State>::new()])
+    .dependencies(dptree::deps![InMemStorage::<State>::new(), Conversation::new(Mutex::new(Vec::new()))])
     .enable_ctrlc_handler()
     .build()
     .dispatch()
@@ -58,13 +55,13 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         .branch(case![Command::Stop].endpoint(stop));
 
     let message_handler = Update::filter_message()
+        .filter(|msg: Message| msg.chat.id.0 == -619090504)
         .branch(command_handler)
         .branch(case![State::Start].endpoint(chatbot_answer))
         .branch(case![State::CurrentlyAnswering].endpoint(chatbot_answer));
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>()
-        .branch(message_handler)
-        //.branch(callback_query_handler)
+        .chain(message_handler)
 }
 
 async fn start(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
@@ -84,16 +81,20 @@ async fn stop(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     Ok(())
 }
 
-async fn chatbot_answer(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
-    match dialogue.get().await? {
-        Some(State::Start) => {
+async fn chatbot_answer(bot: Bot, msg: Message, dialogue: MyDialogue, state: State, conversation: Conversation) -> HandlerResult {
+    match state {
+        State::Start => {
             bot.send_message(msg.chat.id, "conversation just started").await?;
             dialogue.update(State::CurrentlyAnswering).await?;
         }
-        Some(State::CurrentlyAnswering) => {
+        State::CurrentlyAnswering => {
             bot.send_message(msg.chat.id, "currently answering").await?;
         }
-        _ => {}
     }
+
+    let conversation_arc = conversation.clone();
+    let mut conversation = conversation_arc.lock().unwrap();
+    conversation.push(msg.text().unwrap().to_string());
+
     Ok(())
 }
