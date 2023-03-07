@@ -25,13 +25,12 @@ impl TokenDispenser {
 
     pub fn subtract_credits(&mut self, credits_needed: u64) {
         if self.tokens_left <= 0 {
-            panic!("You have 0 credits left");
+            panic!("No more credits are available");
         }
 
         self.tokens_left -= credits_needed as i64;
 
-        self.file_writer.get_mut().set_len(0).unwrap();
-        self.file_writer.get_mut().rewind().unwrap();
+        self.file_writer.rewind().unwrap();
         serde_json::to_writer(
             &mut self.file_writer,
             &CreditBudget {
@@ -62,35 +61,36 @@ impl OpenaiTurbo {
             HeaderValue::from_str("application/json").unwrap(),
         );
 
-        let token_dispenser = if !Path::new("credit_budget.txt").exists() {
-            let file = File::create("credits_budget.txt").unwrap();
+        let token_dispenser = match File::open("credits_budget.txt") {
+            Ok(mut file) => {
+                let mut string = String::new();
+                file.read_to_string(&mut string).unwrap();
 
-            // This is 5$ worth of credits
-            let initial_credits = 2500000;
+                let json: CreditBudget = serde_json::from_str(&string).unwrap();
 
-            serde_json::to_writer(
-                &file,
-                &CreditBudget {
-                    tokens_left: initial_credits,
-                },
-            )
-            .unwrap();
-
-            TokenDispenser {
-                file_writer: BufWriter::new(file),
-                tokens_left: initial_credits,
+                TokenDispenser {
+                    file_writer: BufWriter::new(file),
+                    tokens_left: json.tokens_left,
+                }
             }
-        } else {
-            let mut file = File::open("credits_budget.txt").unwrap();
+            Err(_) => {
+                let file = File::create("credits_budget.txt").unwrap();
 
-            let mut string = String::new();
-            file.read_to_string(&mut string).unwrap();
+                // This is 5$ worth of credits
+                let initial_credits = 2500000;
 
-            let json: CreditBudget = serde_json::from_str(&string).unwrap();
+                serde_json::to_writer(
+                    &file,
+                    &CreditBudget {
+                        tokens_left: initial_credits,
+                    },
+                )
+                .unwrap();
 
-            TokenDispenser {
-                file_writer: BufWriter::new(file),
-                tokens_left: json.tokens_left,
+                TokenDispenser {
+                    file_writer: BufWriter::new(file),
+                    tokens_left: initial_credits,
+                }
             }
         };
 
@@ -144,6 +144,7 @@ impl OpenaiTurbo {
                 Ok(parsed) => {
                     self.token_dispenser
                         .subtract_credits(parsed.usage.total_tokens as u64);
+                    dbg!(self.token_dispenser.tokens_left);
                     let text = parsed.choices[0].message.content.clone();
                     Some(text)
                 }
