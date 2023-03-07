@@ -1,5 +1,8 @@
+mod openai_turbo;
+use openai_turbo::OpenaiTurbo;
+
 use dotenv;
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc, Mutex};
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
@@ -13,18 +16,21 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 pub enum State {
     #[default]
     Start,
-    CurrentlyAnswering
+    CurrentlyAnswering,
 }
 
 #[derive(BotCommands, Clone)]
-#[command(rename_rule = "lowercase", description = "This is a bot that tries to be helpful and active during conversations:")]
+#[command(
+    rename_rule = "lowercase",
+    description = "This is a bot that tries to be helpful and active during conversations"
+)]
 enum Command {
     #[command(description = "display this text")]
     Help,
     #[command(description = "start the conversation manually")]
     Start,
     #[command(description = "stop the conversation manually")]
-    Stop
+    Stop,
 }
 
 type Conversation = Arc<Mutex<Vec<String>>>;
@@ -36,14 +42,21 @@ async fn main() {
     pretty_env_logger::init();
     log::info!("Starting throw dice bot...");
 
+    let oat = OpenaiTurbo::new("You are a funny friend talking with a bunch of nerds");
+    oat.list_models().await;
+    return;
+
     let bot = Bot::from_env();
 
     Dispatcher::builder(bot, schema())
-    .dependencies(dptree::deps![InMemStorage::<State>::new(), Conversation::new(Mutex::new(Vec::new()))])
-    .enable_ctrlc_handler()
-    .build()
-    .dispatch()
-    .await;
+        .dependencies(dptree::deps![
+            InMemStorage::<State>::new(),
+            Conversation::new(Mutex::new(Vec::new()))
+        ])
+        .enable_ctrlc_handler()
+        .build()
+        .dispatch()
+        .await;
 }
 
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -60,18 +73,19 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         .branch(case![State::Start].endpoint(chatbot_answer))
         .branch(case![State::CurrentlyAnswering].endpoint(chatbot_answer));
 
-    dialogue::enter::<Update, InMemStorage<State>, State, _>()
-        .chain(message_handler)
+    dialogue::enter::<Update, InMemStorage<State>, State, _>().chain(message_handler)
 }
 
 async fn start(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
-    bot.send_message(msg.chat.id, "At your service master!").await?;
+    bot.send_message(msg.chat.id, "At your service master!")
+        .await?;
     dialogue.update(State::CurrentlyAnswering).await?;
     Ok(())
 }
 
 async fn help(bot: Bot, msg: Message) -> HandlerResult {
-    bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?;
+    bot.send_message(msg.chat.id, Command::descriptions().to_string())
+        .await?;
     Ok(())
 }
 
@@ -81,10 +95,17 @@ async fn stop(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     Ok(())
 }
 
-async fn chatbot_answer(bot: Bot, msg: Message, dialogue: MyDialogue, state: State, conversation: Conversation) -> HandlerResult {
+async fn chatbot_answer(
+    bot: Bot,
+    msg: Message,
+    dialogue: MyDialogue,
+    state: State,
+    conversation: Conversation,
+) -> HandlerResult {
     match state {
         State::Start => {
-            bot.send_message(msg.chat.id, "conversation just started").await?;
+            bot.send_message(msg.chat.id, "conversation just started")
+                .await?;
             dialogue.update(State::CurrentlyAnswering).await?;
         }
         State::CurrentlyAnswering => {
