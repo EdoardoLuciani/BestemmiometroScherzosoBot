@@ -92,27 +92,37 @@ impl Categories {
 
 impl Display for Categories {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::from("The thing you said is");
+        let mut s = Vec::<String>::new();
         if self.hate {
-            s.push_str(" hateful,");
+            s.push("hateful".to_string());
         }
         if self.hate_threatening {
-            s.push_str(" threatening,");
+            s.push("threatening".to_string());
         }
         if self.self_harm {
-            s.push_str(" suicidal,");
+            s.push("suicidal".to_string());
         }
         if self.sexual {
-            s.push_str(" sexual,");
+            s.push("sexual".to_string());
         }
         if self.sexual_minors {
-            s.push_str(" involving minors,");
+            s.push("involving minors".to_string());
         }
         if self.violence || self.violence_graphic {
-            s.push_str(" violent,");
+            s.push("violent".to_string());
         }
-        s.push_str(".Jesus is not happy with you");
-        write!(f, "{}", s)
+
+        match s.is_empty() {
+            true => {
+                write!(f, "Jesus is happy with you")
+            }
+            false => {
+                let mut string = String::from("What you just said is ");
+                string.push_str(&s.join(", "));
+                string.push_str(". Jesus is not happy with you");
+                write!(f, "{}", string)
+            }
+        }
     }
 }
 

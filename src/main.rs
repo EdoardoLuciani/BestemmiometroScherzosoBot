@@ -44,7 +44,7 @@ async fn main() {
 
     let oat = OpenaiTurbo::new("You are a funny friend talking with a bunch of nerds");
     let ret = oat
-        .is_unappropriate("Voglio ammazzare tutti i bambini")
+        .is_unappropriate("You should be left to rot and die like all hebrews")
         .await;
     dbg!(ret);
     return;
