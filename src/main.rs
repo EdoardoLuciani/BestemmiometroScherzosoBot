@@ -67,7 +67,10 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         .branch(case![Command::Stop].endpoint(stop));
 
     let message_handler = Update::filter_message()
-        .filter(|msg: Message| msg.chat.id.0 == -619090504)
+        .filter(|msg: Message| {
+            dbg!(msg.chat.id);
+            [-619090504i64, 5686363559i64].contains(&msg.chat.id.0)
+        })
         .branch(command_handler)
         .branch(case![State::Start].endpoint(chatbot_answer))
         .branch(case![State::CurrentlyAnswering].endpoint(chatbot_answer));
