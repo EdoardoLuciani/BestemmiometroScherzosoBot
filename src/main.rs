@@ -2,12 +2,15 @@ mod openai_turbo;
 use openai_turbo::OpenaiTurbo;
 
 use dotenv;
-use std::sync::{Arc, Mutex};
+use rand::Rng;
+use std::fmt::format;
+use std::sync::Arc;
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
     utils::command::BotCommands,
 };
+use tokio::sync::Mutex;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -33,8 +36,6 @@ enum Command {
     Stop,
 }
 
-type Conversation = Arc<Mutex<Vec<String>>>;
-
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
@@ -42,20 +43,15 @@ async fn main() {
     pretty_env_logger::init();
     log::info!("Starting throw dice bot...");
 
-    let oat = OpenaiTurbo::new("You are a funny friend talking with a bunch of nerds");
-    let ret = oat
-        .is_unappropriate("You should be left to rot and die like all hebrews")
-        .await;
-    dbg!(ret);
-    return;
-
     let bot = Bot::from_env();
 
+    let mut dependancy_map = dptree::di::DependencyMap::new();
+    dependancy_map.insert(InMemStorage::<State>::new());
+    dependancy_map.insert(Arc::new(Mutex::new(Vec::<String>::new())));
+    dependancy_map.insert(Arc::new(Mutex::new(OpenaiTurbo::new())));
+
     Dispatcher::builder(bot, schema())
-        .dependencies(dptree::deps![
-            InMemStorage::<State>::new(),
-            Conversation::new(Mutex::new(Vec::new()))
-        ])
+        .dependencies(dependancy_map)
         .enable_ctrlc_handler()
         .build()
         .dispatch()
@@ -92,8 +88,14 @@ async fn help(bot: Bot, msg: Message) -> HandlerResult {
     Ok(())
 }
 
-async fn stop(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+async fn stop(
+    bot: Bot,
+    msg: Message,
+    dialogue: MyDialogue,
+    conversation: Arc<Mutex<Vec<String>>>,
+) -> HandlerResult {
     bot.send_message(msg.chat.id, "Ok I will shut up").await?;
+    conversation.lock().await.clear();
     dialogue.exit().await?;
     Ok(())
 }
@@ -103,22 +105,54 @@ async fn chatbot_answer(
     msg: Message,
     dialogue: MyDialogue,
     state: State,
-    conversation: Conversation,
+    conversation: Arc<Mutex<Vec<String>>>,
+    openai_turbo: Arc<Mutex<OpenaiTurbo>>,
 ) -> HandlerResult {
+    let msg_text = msg.text().unwrap();
+
+    let openai_turbo = openai_turbo.lock().await;
+    if let Some(response) = openai_turbo.is_unappropriate(msg_text).await {
+        bot.send_message(msg.chat.id, response)
+            .reply_to_message_id(msg.id)
+            .await?;
+    }
+
+    let mut conversation = conversation.lock().await;
+
     match state {
         State::Start => {
-            bot.send_message(msg.chat.id, "conversation just started")
-                .await?;
-            dialogue.update(State::CurrentlyAnswering).await?;
+            if rand::thread_rng().gen_range(0..10) == 7 {
+                dialogue.update(State::CurrentlyAnswering).await?;
+            } else {
+                return Ok(());
+            }
         }
         State::CurrentlyAnswering => {
-            bot.send_message(msg.chat.id, "currently answering").await?;
+            if conversation.len() == 10 {
+                conversation.clear();
+                dialogue.exit().await?;
+                return Ok(());
+            }
         }
     }
 
-    let conversation_arc = conversation.clone();
-    let mut conversation = conversation_arc.lock().unwrap();
-    conversation.push(msg.text().unwrap().to_string());
+    conversation.push(msg_text.to_string());
+
+    if let Some(response) = openai_turbo
+        .chat(
+            "You are a funny friend talking to a bunch of nerds",
+            &conversation,
+        )
+        .await
+    {
+        conversation.push(response.to_string());
+
+        bot.send_message(msg.chat.id, response)
+            .reply_to_message_id(msg.id)
+            .await?;
+    } else {
+        conversation.pop();
+    }
 
     Ok(())
 }

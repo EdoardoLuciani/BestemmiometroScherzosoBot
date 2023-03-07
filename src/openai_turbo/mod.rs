@@ -7,11 +7,10 @@ use teloxide::types::Me;
 
 pub struct OpenaiTurbo {
     client: reqwest::Client,
-    initial_prompt: String,
 }
 
 impl OpenaiTurbo {
-    pub fn new(initial_prompt: &str) -> Self {
+    pub fn new() -> Self {
         let mut default_headers = HeaderMap::new();
 
         let bearer_string = format!("Bearer {}", std::env::var("OPENAI_TOKEN").unwrap());
@@ -26,7 +25,6 @@ impl OpenaiTurbo {
         );
 
         Self {
-            initial_prompt: initial_prompt.to_string(),
             client: reqwest::Client::builder()
                 .https_only(true)
                 .min_tls_version(tls::Version::TLS_1_2)
@@ -36,10 +34,10 @@ impl OpenaiTurbo {
         }
     }
 
-    pub async fn chat(&self, conversation: &[String]) -> Option<String> {
+    pub async fn chat(&self, initial_prompt: &str, conversation: &[String]) -> Option<String> {
         let messages: Vec<Message> = std::iter::once(Message {
             role: "system".to_string(),
-            content: self.initial_prompt.clone(),
+            content: initial_prompt.to_string(),
         })
         .chain(conversation.iter().enumerate().map(|(i, prompt)| Message {
             role: if i % 2 == 0 { "user" } else { "system" }.to_string(),
@@ -51,7 +49,7 @@ impl OpenaiTurbo {
             model: "gpt-3.5-turbo".to_string(),
             messages,
             temperature: 0.8,
-            max_tokens: 100,
+            max_tokens: 60,
         };
 
         let res = self
@@ -64,8 +62,9 @@ impl OpenaiTurbo {
         match res.status() {
             StatusCode::OK => match res.json::<ChatCompetitionResponse>().await {
                 Ok(parsed) => {
-                    dbg!(&parsed);
-                    Some(parsed.choices[0].message.content.clone())
+                    let text = parsed.choices[0].message.content.clone();
+                    //text.tr
+                    Some(text)
                 }
                 Err(_) => None,
             },
@@ -84,7 +83,7 @@ impl OpenaiTurbo {
             .json(&json)
             .send()
             .await
-            .ok()?;
+            .unwrap();
         match res.status() {
             StatusCode::OK => match res.json::<ModerationResponse>().await {
                 Ok(parsed) => {
