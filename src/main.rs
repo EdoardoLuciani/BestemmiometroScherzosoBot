@@ -113,7 +113,7 @@ async fn chatbot_answer(
 ) -> HandlerResult {
     let msg_text = msg.text().unwrap();
 
-    let openai_turbo = openai_turbo.lock().await;
+    let mut openai_turbo = openai_turbo.lock().await;
     if let Some(response) = openai_turbo.is_unappropriate(msg_text).await {
         bot.send_message(msg.chat.id, response)
             .reply_to_message_id(msg.id)

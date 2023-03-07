@@ -2,11 +2,47 @@ mod serde_structs;
 
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{tls, StatusCode};
+use serde::{Deserialize, Serialize};
 use serde_structs::*;
-use teloxide::types::Me;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Read, Seek, Write};
+use std::path::Path;
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct CreditBudget {
+    pub tokens_left: i64,
+}
+
+struct TokenDispenser {
+    file_writer: BufWriter<File>,
+    tokens_left: i64,
+}
+
+impl TokenDispenser {
+    pub fn get_credits(&mut self, credits_needed: u64) -> bool {
+        if self.tokens_left < credits_needed as i64 {
+            return false;
+        }
+
+        self.tokens_left -= credits_needed as i64;
+
+        self.file_writer.get_mut().set_len(0).unwrap();
+        self.file_writer.get_mut().rewind().unwrap();
+        serde_json::to_writer(
+            &mut self.file_writer,
+            &CreditBudget {
+                tokens_left: self.tokens_left,
+            },
+        )
+        .unwrap();
+
+        true
+    }
+}
 
 pub struct OpenaiTurbo {
     client: reqwest::Client,
+    token_dispenser: TokenDispenser,
 }
 
 impl OpenaiTurbo {
@@ -24,6 +60,38 @@ impl OpenaiTurbo {
             HeaderValue::from_str("application/json").unwrap(),
         );
 
+        let token_dispenser = if !Path::new("credit_budget.txt").exists() {
+            let file = File::create("credits_budget.txt").unwrap();
+
+            // This is 5$ worth of credits
+            let initial_credits = 2500000;
+
+            serde_json::to_writer(
+                &file,
+                &CreditBudget {
+                    tokens_left: initial_credits,
+                },
+            )
+            .unwrap();
+
+            TokenDispenser {
+                file_writer: BufWriter::new(file),
+                tokens_left: initial_credits,
+            }
+        } else {
+            let mut file = File::open("credits_budget.txt").unwrap();
+
+            let mut string = String::new();
+            file.read_to_string(&mut string).unwrap();
+
+            let json: CreditBudget = serde_json::from_str(&string).unwrap();
+
+            TokenDispenser {
+                file_writer: BufWriter::new(file),
+                tokens_left: json.tokens_left,
+            }
+        };
+
         Self {
             client: reqwest::Client::builder()
                 .https_only(true)
@@ -31,10 +99,11 @@ impl OpenaiTurbo {
                 .default_headers(default_headers)
                 .build()
                 .unwrap(),
+            token_dispenser,
         }
     }
 
-    pub async fn chat(&self, initial_prompt: &str, conversation: &[String]) -> Option<String> {
+    pub async fn chat(&mut self, initial_prompt: &str, conversation: &[String]) -> Option<String> {
         let messages: Vec<Message> = std::iter::once(Message {
             role: "system".to_string(),
             content: initial_prompt.to_string(),
@@ -45,11 +114,20 @@ impl OpenaiTurbo {
         }))
         .collect();
 
+        let max_response_token_length = 60;
+        let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message: &Message| {
+            acc + (message.content.len() as u64 / 4u64)
+        }) + max_response_token_length;
+
+        if self.token_dispenser.get_credits(approximate_token_cost) == false {
+            return None;
+        }
+
         let json = ChatCompetitionRequest {
             model: "gpt-3.5-turbo".to_string(),
             messages,
             temperature: 0.8,
-            max_tokens: 60,
+            max_tokens: max_response_token_length as u32,
         };
 
         let res = self
