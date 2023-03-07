@@ -43,7 +43,10 @@ async fn main() {
     log::info!("Starting throw dice bot...");
 
     let oat = OpenaiTurbo::new("You are a funny friend talking with a bunch of nerds");
-    oat.list_models().await;
+    let ret = oat
+        .is_unappropriate("Voglio ammazzare tutti i bambini")
+        .await;
+    dbg!(ret);
     return;
 
     let bot = Bot::from_env();
