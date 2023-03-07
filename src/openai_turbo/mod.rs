@@ -19,9 +19,13 @@ struct TokenDispenser {
 }
 
 impl TokenDispenser {
-    pub fn get_credits(&mut self, credits_needed: u64) -> bool {
-        if self.tokens_left < credits_needed as i64 {
-            return false;
+    pub fn is_deductible(&self, credits_needed: u64) -> bool {
+        self.tokens_left >= credits_needed as i64
+    }
+
+    pub fn subtract_credits(&mut self, credits_needed: u64) {
+        if self.tokens_left <= 0 {
+            panic!("You have 0 credits left");
         }
 
         self.tokens_left -= credits_needed as i64;
@@ -35,8 +39,6 @@ impl TokenDispenser {
             },
         )
         .unwrap();
-
-        true
     }
 }
 
@@ -119,7 +121,7 @@ impl OpenaiTurbo {
             acc + (message.content.len() as u64 / 4u64)
         }) + max_response_token_length;
 
-        if self.token_dispenser.get_credits(approximate_token_cost) == false {
+        if !self.token_dispenser.is_deductible(approximate_token_cost) {
             return None;
         }
 
@@ -140,8 +142,9 @@ impl OpenaiTurbo {
         match res.status() {
             StatusCode::OK => match res.json::<ChatCompetitionResponse>().await {
                 Ok(parsed) => {
+                    self.token_dispenser
+                        .subtract_credits(parsed.usage.total_tokens as u64);
                     let text = parsed.choices[0].message.content.clone();
-                    //text.tr
                     Some(text)
                 }
                 Err(_) => None,
