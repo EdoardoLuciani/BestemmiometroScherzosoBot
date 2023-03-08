@@ -94,22 +94,22 @@ impl Display for Categories {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = Vec::<String>::new();
         if self.hate {
-            s.push("hateful".to_string());
+            s.push("hateful".to_owned());
         }
         if self.hate_threatening {
-            s.push("threatening".to_string());
+            s.push("threatening".to_owned());
         }
         if self.self_harm {
-            s.push("suicidal".to_string());
+            s.push("suicidal".to_owned());
         }
         if self.sexual {
-            s.push("sexual".to_string());
+            s.push("sexual".to_owned());
         }
         if self.sexual_minors {
-            s.push("involving minors".to_string());
+            s.push("involving minors".to_owned());
         }
         if self.violence || self.violence_graphic {
-            s.push("violent".to_string());
+            s.push("violent".to_owned());
         }
 
         match s.is_empty() {

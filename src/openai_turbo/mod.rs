@@ -110,11 +110,11 @@ impl OpenaiTurbo {
 
     pub async fn chat(&mut self, initial_prompt: &str, conversation: &[String]) -> Option<String> {
         let messages: Vec<Message> = std::iter::once(Message {
-            role: "system".to_string(),
+            role: "system".to_owned(),
             content: initial_prompt.to_string(),
         })
         .chain(conversation.iter().enumerate().map(|(i, prompt)| Message {
-            role: if i % 2 == 0 { "user" } else { "system" }.to_string(),
+            role: if i % 2 == 0 { "user" } else { "system" }.to_owned(),
             content: prompt.clone(),
         }))
         .collect();
@@ -129,7 +129,7 @@ impl OpenaiTurbo {
         }
 
         let json = ChatCompetitionRequest {
-            model: "gpt-3.5-turbo".to_string(),
+            model: "gpt-3.5-turbo".to_owned(),
             messages,
             temperature: 0.8,
             max_tokens: max_response_token_length as u32,
@@ -159,7 +159,7 @@ impl OpenaiTurbo {
 
     pub async fn is_inappropriate(&self, sentence: &str) -> Result<Categories, reqwest::Error> {
         let json = ModerationRequest {
-            input: sentence.to_string(),
+            input: sentence.to_owned(),
         };
 
         Ok(self
