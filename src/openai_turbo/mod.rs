@@ -119,18 +119,23 @@ impl OpenaiTurbo {
         initial_prompt: &str,
         conversation: &[String],
     ) -> Result<String, ChatError> {
-        let messages: Vec<Message> = std::iter::once(Message {
-            role: "system".to_owned(),
-            content: initial_prompt.to_owned(),
+        let messages: Vec<MessageRef> = std::iter::once(MessageRef {
+            role: "system",
+            content: initial_prompt,
         })
-        .chain(conversation.iter().enumerate().map(|(i, prompt)| Message {
-            role: if i % 2 == 0 { "user" } else { "system" }.to_owned(),
-            content: prompt.clone(),
-        }))
+        .chain(
+            conversation
+                .iter()
+                .enumerate()
+                .map(|(i, prompt)| MessageRef {
+                    role: if i % 2 == 0 { "user" } else { "assistant" },
+                    content: prompt,
+                }),
+        )
         .collect();
 
         let max_response_token_length = 60;
-        let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message: &Message| {
+        let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message| {
             acc + (message.content.len() as u64 / 4u64)
         }) + max_response_token_length;
 

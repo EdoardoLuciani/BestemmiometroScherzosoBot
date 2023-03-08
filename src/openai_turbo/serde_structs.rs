@@ -1,23 +1,23 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChatCompetitionRequest {
+#[derive(Default, Debug, Clone, PartialEq, Serialize)]
+pub struct ChatCompetitionRequest<'a> {
     pub model: String,
-    pub messages: Vec<Message>,
+    pub messages: Vec<MessageRef<'a, 'a>>,
     pub temperature: f32,
     pub max_tokens: u32,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Message {
-    pub role: String,
-    pub content: String,
+#[derive(Default, Debug, Clone, PartialEq, Serialize)]
+pub struct MessageRef<'a, 'b> {
+    pub role: &'a str,
+    pub content: &'b str,
 }
 
 // -------------------------------------
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct ChatCompetitionResponse {
     pub id: String,
     pub object: String,
@@ -26,14 +26,20 @@ pub struct ChatCompetitionResponse {
     pub usage: Usage,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct Choice {
     pub index: u32,
     pub message: Message,
     pub finish_reason: String,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -42,28 +48,28 @@ pub struct Usage {
 
 // -------------------------------------
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize)]
 pub struct ModerationRequest {
     pub input: String,
 }
 
 // -------------------------------------
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct ModerationResponse {
     pub id: String,
     pub model: String,
     pub results: Vec<ModerationResult>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct ModerationResult {
     pub categories: Categories,
     pub category_scores: CategoryScores,
     pub flagged: bool,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct Categories {
     pub hate: bool,
     #[serde(rename = "hate/threatening")]
@@ -126,7 +132,7 @@ impl Display for Categories {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Deserialize)]
 pub struct CategoryScores {
     pub hate: f64,
     #[serde(rename = "hate/threatening")]
