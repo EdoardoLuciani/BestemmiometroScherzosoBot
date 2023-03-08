@@ -49,8 +49,8 @@ pub struct Usage {
 // -------------------------------------
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize)]
-pub struct ModerationRequest {
-    pub input: String,
+pub struct ModerationRequest<'a> {
+    pub input: &'a str,
 }
 
 // -------------------------------------

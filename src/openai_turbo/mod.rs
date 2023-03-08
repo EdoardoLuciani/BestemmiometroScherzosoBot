@@ -167,9 +167,7 @@ impl OpenaiTurbo {
     }
 
     pub async fn is_inappropriate(&self, sentence: &str) -> Result<Categories, reqwest::Error> {
-        let json = ModerationRequest {
-            input: sentence.to_owned(),
-        };
+        let json = ModerationRequest { input: sentence };
 
         Ok(self
             .client
