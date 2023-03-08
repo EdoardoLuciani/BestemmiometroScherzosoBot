@@ -150,7 +150,7 @@ async fn handle_message(
 
     conversation.push(msg_text.to_string());
 
-    if let Some(response) = openai_turbo
+    if let Ok(response) = openai_turbo
         .chat(
             "You are a funny friend talking to a bunch of nerds",
             &conversation,

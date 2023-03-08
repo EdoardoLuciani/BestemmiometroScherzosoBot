@@ -24,7 +24,7 @@ impl TokenDispenser {
 
     pub fn subtract_credits(&mut self, credits_needed: u64) {
         if self.tokens_left <= 0 {
-            panic!("No more credits are available");
+            panic!("No more credits available");
         }
 
         self.tokens_left -= credits_needed as i64;
@@ -38,6 +38,12 @@ impl TokenDispenser {
         )
         .unwrap();
     }
+}
+
+pub enum ChatError {
+    InsufficientCredits,
+    RequestFailed,
+    ResponseParsingFailed,
 }
 
 pub struct OpenaiTurbo {
@@ -108,10 +114,14 @@ impl OpenaiTurbo {
         }
     }
 
-    pub async fn chat(&mut self, initial_prompt: &str, conversation: &[String]) -> Option<String> {
+    pub async fn chat(
+        &mut self,
+        initial_prompt: &str,
+        conversation: &[String],
+    ) -> Result<String, ChatError> {
         let messages: Vec<Message> = std::iter::once(Message {
             role: "system".to_owned(),
-            content: initial_prompt.to_string(),
+            content: initial_prompt.to_owned(),
         })
         .chain(conversation.iter().enumerate().map(|(i, prompt)| Message {
             role: if i % 2 == 0 { "user" } else { "system" }.to_owned(),
@@ -125,7 +135,7 @@ impl OpenaiTurbo {
         }) + max_response_token_length;
 
         if !self.token_dispenser.is_deductible(approximate_token_cost) {
-            return None;
+            return Err(ChatError::InsufficientCredits);
         }
 
         let json = ChatCompetitionRequest {
@@ -135,26 +145,20 @@ impl OpenaiTurbo {
             max_tokens: max_response_token_length as u32,
         };
 
-        let res = self
+        let response = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
             .json(&json)
             .send()
             .await
-            .ok()?;
-        match res.status() {
-            StatusCode::OK => match res.json::<ChatCompetitionResponse>().await {
-                Ok(parsed) => {
-                    self.token_dispenser
-                        .subtract_credits(parsed.usage.total_tokens as u64);
-                    dbg!(self.token_dispenser.tokens_left);
-                    let text = parsed.choices[0].message.content.clone();
-                    Some(text)
-                }
-                Err(_) => None,
-            },
-            _ => None,
-        }
+            .map_err(|_| ChatError::RequestFailed)?
+            .json::<ChatCompetitionResponse>()
+            .await
+            .map_err(|_| ChatError::ResponseParsingFailed)?;
+
+        self.token_dispenser
+            .subtract_credits(response.usage.total_tokens as u64);
+        Ok(response.choices[0].message.content.to_owned())
     }
 
     pub async fn is_inappropriate(&self, sentence: &str) -> Result<Categories, reqwest::Error> {
