@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{BufWriter, Read, Seek};
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct CreditBudget {
+struct TokensLeft {
     pub tokens_left: i64,
 }
 
@@ -18,6 +18,36 @@ struct TokenDispenser {
 }
 
 impl TokenDispenser {
+    pub fn new(file_path: &str, initial_tokens: u64) -> Self {
+        let (file, tokens) = match File::options().write(true).read(true).open(file_path) {
+            Ok(mut file) => {
+                let mut string = String::new();
+                file.read_to_string(&mut string)
+                    .expect("Could not read from file");
+
+                let json: TokensLeft = serde_json::from_str(&string).expect("Could not parse json");
+                (file, json.tokens_left)
+            }
+            Err(_) => {
+                let file = File::create(file_path).expect("Could not create file");
+
+                serde_json::to_writer(
+                    &file,
+                    &TokensLeft {
+                        tokens_left: initial_tokens as i64,
+                    },
+                )
+                .unwrap();
+                (file, initial_tokens as i64)
+            }
+        };
+
+        Self {
+            file_writer: BufWriter::new(file),
+            tokens_left: tokens,
+        }
+    }
+
     pub fn is_deductible(&self, credits_needed: u64) -> bool {
         self.tokens_left >= credits_needed as i64
     }
@@ -32,7 +62,7 @@ impl TokenDispenser {
         self.file_writer.rewind().unwrap();
         serde_json::to_writer(
             &mut self.file_writer,
-            &CreditBudget {
+            &TokensLeft {
                 tokens_left: self.tokens_left,
             },
         )
@@ -53,43 +83,6 @@ pub struct OpenaiTurbo {
 
 impl OpenaiTurbo {
     pub fn new() -> Self {
-        let token_dispenser = match File::options()
-            .write(true)
-            .read(true)
-            .open("../../credits_budget.json")
-        {
-            Ok(mut file) => {
-                let mut string = String::new();
-                file.read_to_string(&mut string).unwrap();
-
-                let json: CreditBudget = serde_json::from_str(&string).unwrap();
-
-                TokenDispenser {
-                    file_writer: BufWriter::new(file),
-                    tokens_left: json.tokens_left,
-                }
-            }
-            Err(_) => {
-                let file = File::create("../../credits_budget.json").unwrap();
-
-                // This is 5$ worth of credits
-                let initial_credits = 2500000;
-
-                serde_json::to_writer(
-                    &file,
-                    &CreditBudget {
-                        tokens_left: initial_credits,
-                    },
-                )
-                .unwrap();
-
-                TokenDispenser {
-                    file_writer: BufWriter::new(file),
-                    tokens_left: initial_credits,
-                }
-            }
-        };
-
         let mut default_headers = HeaderMap::new();
 
         let bearer_string = format!("Bearer {}", std::env::var("OPENAI_TOKEN").unwrap());
@@ -110,7 +103,7 @@ impl OpenaiTurbo {
                 .default_headers(default_headers)
                 .build()
                 .unwrap(),
-            token_dispenser,
+            token_dispenser: TokenDispenser::new("../../credits_budget.json", 2500000),
         }
     }
 
