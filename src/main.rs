@@ -1,8 +1,9 @@
 mod openai_turbo;
+
 use openai_turbo::OpenaiTurbo;
+use std::fs::File;
 
 use rand::Rng;
-
 use std::sync::Arc;
 use teloxide::dptree::deps;
 use teloxide::{
@@ -36,6 +37,11 @@ enum Command {
     Stop,
 }
 
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct WhiteList {
+    pub whitelisted_ids: Vec<i64>,
+}
+
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
@@ -60,15 +66,19 @@ async fn main() {
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
     use dptree::case;
 
+    let whitelist = File::open("whitelist.json").expect("Unable to open whitelist.json");
+    let whitelist_json: WhiteList =
+        serde_json::from_reader(whitelist).expect("Cannot parse whitelist.json");
+
     let command_handler = teloxide::filter_command::<Command, _>()
         .branch(case![Command::Start].endpoint(start))
         .branch(case![Command::Help].endpoint(help))
         .branch(case![Command::Stop].endpoint(stop));
 
     let message_handler = Update::filter_message()
-        .filter(|msg: Message| {
+        .filter(move |msg: Message| {
             dbg!(msg.chat.id);
-            [-619090504i64, 5686363559i64].contains(&msg.chat.id.0)
+            whitelist_json.whitelisted_ids.contains(&msg.chat.id.0)
         })
         .branch(command_handler)
         .branch(case![State::Start].endpoint(chatbot_answer))
