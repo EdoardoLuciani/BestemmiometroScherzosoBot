@@ -1,9 +1,8 @@
 mod openai_turbo;
 use openai_turbo::OpenaiTurbo;
 
-use dotenv;
 use rand::Rng;
-use std::fmt::format;
+
 use std::sync::Arc;
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
@@ -45,7 +44,7 @@ async fn main() {
 
     let bot = Bot::from_env();
 
-    let mut dependancy_map = dptree::di::DependencyMap::new();
+    let mut dependancy_map = DependencyMap::new();
     dependancy_map.insert(InMemStorage::<State>::new());
     dependancy_map.insert(Arc::new(Mutex::new(Vec::<String>::new())));
     dependancy_map.insert(Arc::new(Mutex::new(OpenaiTurbo::new())));

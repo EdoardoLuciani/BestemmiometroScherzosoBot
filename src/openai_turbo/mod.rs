@@ -5,8 +5,7 @@ use reqwest::{tls, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_structs::*;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek, Write};
-use std::path::Path;
+use std::io::{BufWriter, Read, Seek};
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct CreditBudget {
