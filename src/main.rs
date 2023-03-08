@@ -4,6 +4,7 @@ use openai_turbo::OpenaiTurbo;
 use rand::Rng;
 
 use std::sync::Arc;
+use teloxide::dptree::deps;
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
@@ -44,13 +45,12 @@ async fn main() {
 
     let bot = Bot::from_env();
 
-    let mut dependancy_map = DependencyMap::new();
-    dependancy_map.insert(InMemStorage::<State>::new());
-    dependancy_map.insert(Arc::new(Mutex::new(Vec::<String>::new())));
-    dependancy_map.insert(Arc::new(Mutex::new(OpenaiTurbo::new())));
-
     Dispatcher::builder(bot, schema())
-        .dependencies(dependancy_map)
+        .dependencies(deps![
+            InMemStorage::<State>::new(),
+            Arc::new(Mutex::new(Vec::<String>::new())),
+            Arc::new(Mutex::new(OpenaiTurbo::new()))
+        ])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
