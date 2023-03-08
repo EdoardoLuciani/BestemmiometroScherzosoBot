@@ -63,7 +63,7 @@ impl OpenaiTurbo {
         let token_dispenser = match File::options()
             .write(true)
             .read(true)
-            .open("credits_budget.txt")
+            .open("../../credits_budget.json")
         {
             Ok(mut file) => {
                 let mut string = String::new();
@@ -77,7 +77,7 @@ impl OpenaiTurbo {
                 }
             }
             Err(_) => {
-                let file = File::create("credits_budget.txt").unwrap();
+                let file = File::create("../../credits_budget.json").unwrap();
 
                 // This is 5$ worth of credits
                 let initial_credits = 2500000;
