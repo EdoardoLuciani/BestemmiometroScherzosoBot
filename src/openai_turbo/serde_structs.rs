@@ -53,11 +53,11 @@ pub struct ModerationRequest {
 pub struct ModerationResponse {
     pub id: String,
     pub model: String,
-    pub results: Vec<Result>,
+    pub results: Vec<ModerationResult>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Result {
+pub struct ModerationResult {
     pub categories: Categories,
     pub category_scores: CategoryScores,
     pub flagged: bool,
