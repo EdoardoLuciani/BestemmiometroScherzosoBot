@@ -61,7 +61,11 @@ impl OpenaiTurbo {
             HeaderValue::from_str("application/json").unwrap(),
         );
 
-        let token_dispenser = match File::open("credits_budget.txt") {
+        let token_dispenser = match File::options()
+            .write(true)
+            .read(true)
+            .open("credits_budget.txt")
+        {
             Ok(mut file) => {
                 let mut string = String::new();
                 file.read_to_string(&mut string).unwrap();
