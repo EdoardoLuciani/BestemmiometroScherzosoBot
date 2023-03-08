@@ -81,8 +81,8 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             whitelist_json.whitelisted_ids.contains(&msg.chat.id.0)
         })
         .branch(command_handler)
-        .branch(case![State::Start].endpoint(chatbot_answer))
-        .branch(case![State::CurrentlyAnswering].endpoint(chatbot_answer));
+        .branch(case![State::Start].endpoint(handle_message))
+        .branch(case![State::CurrentlyAnswering].endpoint(handle_message));
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>().chain(message_handler)
 }
@@ -112,7 +112,7 @@ async fn stop(
     Ok(())
 }
 
-async fn chatbot_answer(
+async fn handle_message(
     bot: Bot,
     msg: Message,
     dialogue: MyDialogue,
@@ -123,8 +123,8 @@ async fn chatbot_answer(
     let msg_text = msg.text().unwrap();
 
     let mut openai_turbo = openai_turbo.lock().await;
-    if let Some(response) = openai_turbo.is_unappropriate(msg_text).await {
-        bot.send_message(msg.chat.id, response)
+    if let Ok(categories) = openai_turbo.is_inappropriate(msg_text).await {
+        bot.send_message(msg.chat.id, categories.to_string())
             .reply_to_message_id(msg.id)
             .await?;
     }

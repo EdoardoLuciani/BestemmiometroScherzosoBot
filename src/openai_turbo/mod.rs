@@ -157,27 +157,21 @@ impl OpenaiTurbo {
         }
     }
 
-    pub async fn is_unappropriate(&self, sentence: &str) -> Option<String> {
+    pub async fn is_inappropriate(&self, sentence: &str) -> Result<Categories, reqwest::Error> {
         let json = ModerationRequest {
             input: sentence.to_string(),
         };
 
-        let res = self
+        Ok(self
             .client
             .post("https://api.openai.com/v1/moderations")
             .json(&json)
             .send()
-            .await
-            .unwrap();
-        match res.status() {
-            StatusCode::OK => match res.json::<ModerationResponse>().await {
-                Ok(parsed) => {
-                    let categories = &parsed.results[0].categories;
-                    categories.is_flagged().then_some(categories.to_string())
-                }
-                Err(_) => None,
-            },
-            _ => None,
-        }
+            .await?
+            .json::<ModerationResponse>()
+            .await?
+            .results[0]
+            .categories
+            .clone())
     }
 }
