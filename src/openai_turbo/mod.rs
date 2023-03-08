@@ -47,19 +47,6 @@ pub struct OpenaiTurbo {
 
 impl OpenaiTurbo {
     pub fn new() -> Self {
-        let mut default_headers = HeaderMap::new();
-
-        let bearer_string = format!("Bearer {}", std::env::var("OPENAI_TOKEN").unwrap());
-        default_headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&bearer_string).unwrap(),
-        );
-
-        default_headers.insert(
-            "Content-Type",
-            HeaderValue::from_str("application/json").unwrap(),
-        );
-
         let token_dispenser = match File::options()
             .write(true)
             .read(true)
@@ -96,6 +83,19 @@ impl OpenaiTurbo {
                 }
             }
         };
+
+        let mut default_headers = HeaderMap::new();
+
+        let bearer_string = format!("Bearer {}", std::env::var("OPENAI_TOKEN").unwrap());
+        default_headers.insert(
+            "Authorization",
+            HeaderValue::from_str(&bearer_string).unwrap(),
+        );
+
+        default_headers.insert(
+            "Content-Type",
+            HeaderValue::from_str("application/json").unwrap(),
+        );
 
         Self {
             client: reqwest::Client::builder()
