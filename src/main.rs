@@ -147,7 +147,7 @@ async fn send_response(
         Err(e) => {
             bot.send_message(
                 msg.chat.id,
-                format!("Sorry, but due to this: {:?}, I could not answer", e),
+                format!("Sorry, but due: {:?}, I could not answer", e),
             )
             .await?;
         }
@@ -168,6 +168,9 @@ async fn handle_message(
     monitor_and_reply(&bot, &msg, &openai_client).await?;
 
     let mut conversation = conversation.lock().await;
+
+    bot.send_message(msg.chat.id, format!("{:?}", conversation))
+        .await?;
 
     let should_reply = match state {
         State::Start => {
