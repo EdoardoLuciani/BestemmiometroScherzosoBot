@@ -102,7 +102,7 @@ impl OpenaiTurbo {
                 .default_headers(default_headers)
                 .build()
                 .unwrap(),
-            token_dispenser: TokenDispenser::new("../../credits_budget.json", 2500000),
+            token_dispenser: TokenDispenser::new("credits_budget.json", 2500000),
         }
     }
 
