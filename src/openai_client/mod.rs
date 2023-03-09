@@ -1,8 +1,8 @@
-mod serde_structs;
+mod http_requests_structs;
 
+use http_requests_structs::*;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
-use serde_structs::*;
 use std::fs::File;
 use std::io::{BufWriter, Read, Seek};
 
@@ -69,6 +69,7 @@ impl TokenDispenser {
     }
 }
 
+#[derive(Debug)]
 pub enum ChatError {
     InsufficientCredits,
     RequestFailed,
@@ -109,22 +110,27 @@ impl OpenaiClient {
     pub async fn chat(
         &mut self,
         initial_prompt: &str,
-        conversation: &[String],
+        conversation_history: &[String],
+        prompt: &str,
     ) -> Result<String, ChatError> {
-        let messages: Vec<MessageRef> = std::iter::once(MessageRef {
-            role: "system",
-            content: initial_prompt,
-        })
-        .chain(
-            conversation
-                .iter()
-                .enumerate()
-                .map(|(i, prompt)| MessageRef {
-                    role: if i % 2 == 0 { "user" } else { "assistant" },
-                    content: prompt,
-                }),
-        )
-        .collect();
+        let messages_iterator = std::iter::once(initial_prompt)
+            .chain(conversation_history.iter().map(|msg| msg.as_str()))
+            .chain(std::iter::once(prompt));
+
+        let messages: Vec<MessageRef> = messages_iterator
+            .enumerate()
+            .map(|(i, message)| {
+                let role = match i {
+                    0 => "system",
+                    n if n % 2 == 1 => "user",
+                    _ => "assistant",
+                };
+                MessageRef {
+                    role,
+                    content: message,
+                }
+            })
+            .collect::<Vec<MessageRef>>();
 
         let max_response_token_length = 60;
         let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message| {

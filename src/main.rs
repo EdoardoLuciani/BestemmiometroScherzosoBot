@@ -112,6 +112,52 @@ async fn stop(
     Ok(())
 }
 
+async fn monitor_and_reply(
+    bot: &Bot,
+    msg: &Message,
+    openai_client: &OpenaiClient,
+) -> HandlerResult {
+    if let Ok(categories) = openai_client.is_inappropriate(msg.text().unwrap()).await {
+        if categories.is_flagged() {
+            bot.send_message(msg.chat.id, categories.to_string())
+                .reply_to_message_id(msg.id)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn send_response(
+    bot: &Bot,
+    msg: &Message,
+    conversation: &mut Vec<String>,
+    openai_client: &mut OpenaiClient,
+) -> HandlerResult {
+    let initial_prompt = "You are a funny friend talking to a bunch of nerds";
+    let msg_text = msg.text().unwrap();
+
+    match openai_client
+        .chat(initial_prompt, &conversation, &msg_text)
+        .await
+    {
+        Ok(response) => {
+            bot.send_message(msg.chat.id, response.to_owned())
+                .reply_to_message_id(msg.id)
+                .await?;
+            conversation.push(msg_text.to_owned());
+            conversation.push(response);
+        }
+        Err(e) => {
+            bot.send_message(
+                msg.chat.id,
+                format!("Sorry, but due to this: {:?}, I could not answer", e),
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
 async fn handle_message(
     bot: Bot,
     msg: Message,
@@ -120,51 +166,31 @@ async fn handle_message(
     conversation: Arc<Mutex<Vec<String>>>,
     openai_client: Arc<Mutex<OpenaiClient>>,
 ) -> HandlerResult {
-    let msg_text = msg.text().unwrap();
-
     let mut openai_client = openai_client.lock().await;
-    if let Ok(categories) = openai_client.is_inappropriate(msg_text).await {
-        bot.send_message(msg.chat.id, categories.to_string())
-            .reply_to_message_id(msg.id)
-            .await?;
-    }
+
+    monitor_and_reply(&bot, &msg, &openai_client).await?;
 
     let mut conversation = conversation.lock().await;
 
-    match state {
+    let should_reply = match state {
         State::Start => {
-            if rand::thread_rng().gen_range(0..10) == 7 {
+            let start_replying = rand::thread_rng().gen_range(0..10) == 7;
+            if start_replying {
                 dialogue.update(State::CurrentlyAnswering).await?;
-            } else {
-                return Ok(());
             }
+            start_replying
         }
         State::CurrentlyAnswering => {
-            if conversation.len() == 10 {
+            let stop_replying = conversation.len() >= 10;
+            if stop_replying {
                 conversation.clear();
                 dialogue.exit().await?;
-                return Ok(());
             }
+            !stop_replying
         }
+    };
+    if should_reply {
+        send_response(&bot, &msg, &mut conversation, &mut openai_client).await?
     }
-
-    conversation.push(msg_text.to_string());
-
-    if let Ok(response) = openai_client
-        .chat(
-            "You are a funny friend talking to a bunch of nerds",
-            &conversation,
-        )
-        .await
-    {
-        conversation.push(response.to_string());
-
-        bot.send_message(msg.chat.id, response)
-            .reply_to_message_id(msg.id)
-            .await?;
-    } else {
-        conversation.pop();
-    }
-
     Ok(())
 }
