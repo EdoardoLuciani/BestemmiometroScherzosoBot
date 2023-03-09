@@ -75,12 +75,12 @@ pub enum ChatError {
     ResponseParsingFailed,
 }
 
-pub struct OpenaiTurbo {
+pub struct OpenaiClient {
     client: reqwest::Client,
     token_dispenser: TokenDispenser,
 }
 
-impl OpenaiTurbo {
+impl OpenaiClient {
     pub fn new() -> Self {
         let mut default_headers = HeaderMap::new();
 

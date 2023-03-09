@@ -1,6 +1,6 @@
-mod openai_turbo;
+mod openai_client;
 
-use openai_turbo::OpenaiTurbo;
+use openai_client::OpenaiClient;
 use std::fs::File;
 
 use rand::Rng;
@@ -55,7 +55,7 @@ async fn main() {
         .dependencies(deps![
             InMemStorage::<State>::new(),
             Arc::new(Mutex::new(Vec::<String>::new())),
-            Arc::new(Mutex::new(OpenaiTurbo::new()))
+            Arc::new(Mutex::new(OpenaiClient::new()))
         ])
         .enable_ctrlc_handler()
         .build()
@@ -118,12 +118,12 @@ async fn handle_message(
     dialogue: MyDialogue,
     state: State,
     conversation: Arc<Mutex<Vec<String>>>,
-    openai_turbo: Arc<Mutex<OpenaiTurbo>>,
+    openai_client: Arc<Mutex<OpenaiClient>>,
 ) -> HandlerResult {
     let msg_text = msg.text().unwrap();
 
-    let mut openai_turbo = openai_turbo.lock().await;
-    if let Ok(categories) = openai_turbo.is_inappropriate(msg_text).await {
+    let mut openai_client = openai_client.lock().await;
+    if let Ok(categories) = openai_client.is_inappropriate(msg_text).await {
         bot.send_message(msg.chat.id, categories.to_string())
             .reply_to_message_id(msg.id)
             .await?;
@@ -150,7 +150,7 @@ async fn handle_message(
 
     conversation.push(msg_text.to_string());
 
-    if let Ok(response) = openai_turbo
+    if let Ok(response) = openai_client
         .chat(
             "You are a funny friend talking to a bunch of nerds",
             &conversation,
