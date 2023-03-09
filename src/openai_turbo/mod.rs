@@ -1,7 +1,6 @@
 mod serde_structs;
 
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{tls, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_structs::*;
 use std::fs::File;
@@ -99,7 +98,7 @@ impl OpenaiTurbo {
         Self {
             client: reqwest::Client::builder()
                 .https_only(true)
-                .min_tls_version(tls::Version::TLS_1_2)
+                .min_tls_version(reqwest::tls::Version::TLS_1_2)
                 .default_headers(default_headers)
                 .build()
                 .unwrap(),
