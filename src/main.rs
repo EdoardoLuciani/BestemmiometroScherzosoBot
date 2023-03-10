@@ -76,7 +76,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
 
     let message_handler = Update::filter_message()
         .filter(move |msg: Message| {
-            dbg!(msg.chat.id);
+            println!("Received message from chat: {}", msg.chat.id);
             allowlist_json.allowed_ids.contains(&msg.chat.id.0)
         })
         .branch(command_handler)

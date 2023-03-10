@@ -22,13 +22,15 @@ impl TokenDispenser {
             Ok(mut file) => {
                 let mut string = String::new();
                 file.read_to_string(&mut string)
-                    .expect("Could not read from file");
+                    .expect(&format!("Could not read file {}", file_path));
 
-                let json: TokensLeft = serde_json::from_str(&string).expect("Could not parse json");
+                let json: TokensLeft = serde_json::from_str(&string)
+                    .expect(&format!("Could not parse {} json", file_path));
                 (file, json.tokens_left)
             }
             Err(_) => {
-                let file = File::create(file_path).expect("Could not create file");
+                let file =
+                    File::create(file_path).expect(&format!("Could not create file {}", file_path));
 
                 serde_json::to_writer(
                     &file,
@@ -133,9 +135,11 @@ impl OpenaiClient {
             .collect::<Vec<MessageRef>>();
 
         let max_response_token_length = 120;
-        let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message| {
-            acc + (message.content.len() as u64 / 4u64)
-        }) + max_response_token_length;
+        let approximate_token_cost: u64 = messages
+            .iter()
+            .fold(max_response_token_length, |acc: u64, message| {
+                acc + (message.content.len() as u64 / 4u64)
+            });
 
         if !self.token_dispenser.is_deductible(approximate_token_cost) {
             return Err(ChatError::InsufficientCredits);
