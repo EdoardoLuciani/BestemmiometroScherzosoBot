@@ -147,7 +147,7 @@ async fn send_response(
         Err(e) => {
             bot.send_message(
                 msg.chat.id,
-                format!("Sorry, but due: {:?}, I could not answer", e),
+                format!("Sorry, but due to: {:?}, I could not answer", e),
             )
             .await?;
         }
@@ -188,7 +188,6 @@ async fn handle_message(
                     openai_client.write().await.deref_mut(),
                 )
                 .await?;
-                dbg!(&conversation);
                 dialogue
                     .update(State::CurrentlyAnswering { conversation })
                     .await?;

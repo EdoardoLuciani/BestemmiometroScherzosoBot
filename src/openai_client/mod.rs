@@ -132,7 +132,7 @@ impl OpenaiClient {
             })
             .collect::<Vec<MessageRef>>();
 
-        let max_response_token_length = 60;
+        let max_response_token_length = 120;
         let approximate_token_cost: u64 = messages.iter().fold(0, |acc: u64, message| {
             acc + (message.content.len() as u64 / 4u64)
         }) + max_response_token_length;
