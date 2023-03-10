@@ -58,16 +58,16 @@ async fn main() {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct WhiteList {
-    pub whitelisted_ids: Vec<i64>,
+struct Allowlist {
+    pub allowed_ids: Vec<i64>,
 }
 
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
     use dptree::case;
 
-    let whitelist = File::open("whitelist.json").expect("Unable to open whitelist.json");
-    let whitelist_json: WhiteList =
-        serde_json::from_reader(whitelist).expect("Cannot parse whitelist.json");
+    let allowlist = File::open("allowlist.json").expect("Unable to open allowlist.json");
+    let allowlist_json: Allowlist =
+        serde_json::from_reader(allowlist).expect("Cannot parse allowlist.json");
 
     let command_handler = teloxide::filter_command::<Command, _>()
         .branch(case![Command::Start].endpoint(start))
@@ -77,7 +77,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
     let message_handler = Update::filter_message()
         .filter(move |msg: Message| {
             dbg!(msg.chat.id);
-            whitelist_json.whitelisted_ids.contains(&msg.chat.id.0)
+            allowlist_json.allowed_ids.contains(&msg.chat.id.0)
         })
         .branch(command_handler)
         .branch(case![State::Start].endpoint(handle_message))
