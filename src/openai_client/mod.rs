@@ -146,7 +146,7 @@ impl OpenaiClient {
             return Err(ChatError::InsufficientCredits);
         }
 
-        let json = ChatCompetitionRequest {
+        let json = ChatCompletionRequest {
             model: "gpt-3.5-turbo".to_owned(),
             messages,
             temperature: 0.8,
@@ -160,10 +160,10 @@ impl OpenaiClient {
             .send()
             .await
             .map_err(|_| ChatError::RequestFailed)?
-            .json::<ChatCompetitionResponse>()
+            .json::<ChatCompletionResponse>()
             .await
             .map_err(|e| {
-                println!("Json parsing error {:?}", e.source());
+                println!("Response Parsing Failed {:?}", e);
                 ChatError::ResponseParsingFailed
             })?;
 

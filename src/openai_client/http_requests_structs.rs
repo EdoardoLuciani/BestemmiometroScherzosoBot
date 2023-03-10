@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize)]
-pub struct ChatCompetitionRequest<'a> {
+pub struct ChatCompletionRequest<'a> {
     pub model: String,
     pub messages: Vec<MessageRef<'a, 'a>>,
     pub temperature: f32,
@@ -18,7 +18,7 @@ pub struct MessageRef<'a, 'b> {
 // -------------------------------------
 
 #[derive(Default, Debug, Clone, PartialEq, Deserialize)]
-pub struct ChatCompetitionResponse {
+pub struct ChatCompletionResponse {
     pub id: String,
     pub object: String,
     pub created: u64,
