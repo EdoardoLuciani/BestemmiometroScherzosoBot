@@ -3,6 +3,7 @@ mod http_requests_structs;
 use http_requests_structs::*;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Read, Seek};
 
@@ -134,7 +135,7 @@ impl OpenaiClient {
             })
             .collect::<Vec<MessageRef>>();
 
-        let max_response_token_length = 120;
+        let max_response_token_length = if cfg!(debug_assertions) { 30 } else { 120 };
         let approximate_token_cost: u64 = messages
             .iter()
             .fold(max_response_token_length, |acc: u64, message| {
@@ -161,7 +162,10 @@ impl OpenaiClient {
             .map_err(|_| ChatError::RequestFailed)?
             .json::<ChatCompetitionResponse>()
             .await
-            .map_err(|_| ChatError::ResponseParsingFailed)?;
+            .map_err(|e| {
+                println!("Json parsing error {:?}", e.source());
+                ChatError::ResponseParsingFailed
+            })?;
 
         self.token_dispenser
             .subtract_credits(response.usage.total_tokens as u64);

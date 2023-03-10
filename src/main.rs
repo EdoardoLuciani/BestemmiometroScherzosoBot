@@ -58,7 +58,7 @@ async fn main() {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct Allowlist {
+struct AllowList {
     pub allowed_ids: Vec<i64>,
 }
 
@@ -66,7 +66,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
     use dptree::case;
 
     let allowlist = File::open("allowlist.json").expect("Unable to open allowlist.json");
-    let allowlist_json: Allowlist =
+    let allowlist_json: AllowList =
         serde_json::from_reader(allowlist).expect("Cannot parse allowlist.json");
 
     let command_handler = teloxide::filter_command::<Command, _>()
