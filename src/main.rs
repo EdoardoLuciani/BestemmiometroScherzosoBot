@@ -5,7 +5,6 @@ use std::fs::File;
 
 use rand::Rng;
 use std::sync::Arc;
-use teloxide::dptree::deps;
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
@@ -13,15 +12,7 @@ use teloxide::{
 };
 use tokio::sync::Mutex;
 
-type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-#[derive(Clone, Default, Debug)]
-pub enum State {
-    #[default]
-    Start,
-    CurrentlyAnswering,
-}
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -37,10 +28,16 @@ enum Command {
     Stop,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct WhiteList {
-    pub whitelisted_ids: Vec<i64>,
+#[derive(Clone, Default, Debug)]
+pub enum State {
+    #[default]
+    Start,
+    CurrentlyAnswering {
+        conversation: Vec<String>,
+    },
 }
+
+type DialogueStorage = Dialogue<State, InMemStorage<State>>;
 
 #[tokio::main]
 async fn main() {
@@ -49,15 +46,19 @@ async fn main() {
     let bot = Bot::from_env();
 
     Dispatcher::builder(bot, schema())
-        .dependencies(deps![
+        .dependencies(dptree::deps![
             InMemStorage::<State>::new(),
-            Arc::new(Mutex::new(Vec::<String>::new())),
             Arc::new(Mutex::new(OpenaiClient::new()))
         ])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
+}
+
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct WhiteList {
+    pub whitelisted_ids: Vec<i64>,
 }
 
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -79,15 +80,19 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         })
         .branch(command_handler)
         .branch(case![State::Start].endpoint(handle_message))
-        .branch(case![State::CurrentlyAnswering].endpoint(handle_message));
+        .branch(case![State::CurrentlyAnswering { conversation }].endpoint(handle_message));
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>().chain(message_handler)
 }
 
-async fn start(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+async fn start(bot: Bot, msg: Message, dialogue: DialogueStorage) -> HandlerResult {
     bot.send_message(msg.chat.id, "At your service master!")
         .await?;
-    dialogue.update(State::CurrentlyAnswering).await?;
+    dialogue
+        .update(State::CurrentlyAnswering {
+            conversation: Vec::new(),
+        })
+        .await?;
     Ok(())
 }
 
@@ -97,14 +102,8 @@ async fn help(bot: Bot, msg: Message) -> HandlerResult {
     Ok(())
 }
 
-async fn stop(
-    bot: Bot,
-    msg: Message,
-    dialogue: MyDialogue,
-    conversation: Arc<Mutex<Vec<String>>>,
-) -> HandlerResult {
+async fn stop(bot: Bot, msg: Message, dialogue: DialogueStorage) -> HandlerResult {
     bot.send_message(msg.chat.id, "Ok I will shut up").await?;
-    conversation.lock().await.clear();
     dialogue.exit().await?;
     Ok(())
 }
@@ -158,39 +157,35 @@ async fn send_response(
 async fn handle_message(
     bot: Bot,
     msg: Message,
-    dialogue: MyDialogue,
-    state: State,
-    conversation: Arc<Mutex<Vec<String>>>,
+    dialogue: DialogueStorage,
     openai_client: Arc<Mutex<OpenaiClient>>,
 ) -> HandlerResult {
     let mut openai_client = openai_client.lock().await;
 
     monitor_and_reply(&bot, &msg, &openai_client).await?;
 
-    let mut conversation = conversation.lock().await;
-
-    bot.send_message(msg.chat.id, format!("{:?}", conversation))
-        .await?;
-
-    let should_reply = match state {
-        State::Start => {
-            let start_replying = rand::thread_rng().gen_range(0..10) == 7;
-            if start_replying {
-                dialogue.update(State::CurrentlyAnswering).await?;
+    match dialogue.get_or_default().await {
+        Ok(State::Start) => {
+            if rand::thread_rng().gen_range(0..10) == 7 {
+                let mut conversation = Vec::new();
+                send_response(&bot, &msg, &mut conversation, &mut openai_client).await?;
+                dialogue
+                    .update(State::CurrentlyAnswering { conversation })
+                    .await?;
             }
-            start_replying
         }
-        State::CurrentlyAnswering => {
-            let stop_replying = conversation.len() >= 10;
-            if stop_replying {
-                conversation.clear();
+        Ok(State::CurrentlyAnswering { mut conversation }) => {
+            if conversation.len() < 10 {
+                send_response(&bot, &msg, &mut conversation, &mut openai_client).await?;
+                dbg!(&conversation);
+                dialogue
+                    .update(State::CurrentlyAnswering { conversation })
+                    .await?;
+            } else {
                 dialogue.exit().await?;
             }
-            !stop_replying
         }
+        _ => {}
     };
-    if should_reply {
-        send_response(&bot, &msg, &mut conversation, &mut openai_client).await?
-    }
     Ok(())
 }
