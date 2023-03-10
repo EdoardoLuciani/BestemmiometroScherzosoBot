@@ -1,6 +1,8 @@
+# BestemmiometroScherzosoBot
+
 BestemmiometroScherzosoBot (name is in italian, translated is: PlayfulBlasphemyMeterBot) is a Telegram bot written in Rust
 with the following features:
-- It detects when a message contains sexual, hateful and violent words and warns the user
+- It detects when a message contains sexual, hateful and violent words and warns the user by sending a message
 - It engages in a conversation with the user on a 1/10 chance per message or when the user
   sends the command /start
 
