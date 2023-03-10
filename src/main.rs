@@ -2,6 +2,7 @@ mod openai_client;
 
 use openai_client::OpenaiClient;
 use std::fs::File;
+use std::ops::{Deref, DerefMut};
 
 use rand::Rng;
 use std::sync::Arc;
@@ -10,7 +11,7 @@ use teloxide::{
     prelude::*,
     utils::command::BotCommands,
 };
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -48,7 +49,7 @@ async fn main() {
     Dispatcher::builder(bot, schema())
         .dependencies(dptree::deps![
             InMemStorage::<State>::new(),
-            Arc::new(Mutex::new(OpenaiClient::new()))
+            Arc::new(RwLock::new(OpenaiClient::new()))
         ])
         .enable_ctrlc_handler()
         .build()
@@ -158,17 +159,21 @@ async fn handle_message(
     bot: Bot,
     msg: Message,
     dialogue: DialogueStorage,
-    openai_client: Arc<Mutex<OpenaiClient>>,
+    openai_client: Arc<RwLock<OpenaiClient>>,
 ) -> HandlerResult {
-    let mut openai_client = openai_client.lock().await;
-
-    monitor_and_reply(&bot, &msg, &openai_client).await?;
+    monitor_and_reply(&bot, &msg, openai_client.read().await.deref()).await?;
 
     match dialogue.get_or_default().await {
         Ok(State::Start) => {
             if rand::thread_rng().gen_range(0..10) == 7 {
                 let mut conversation = Vec::new();
-                send_response(&bot, &msg, &mut conversation, &mut openai_client).await?;
+                send_response(
+                    &bot,
+                    &msg,
+                    &mut conversation,
+                    openai_client.write().await.deref_mut(),
+                )
+                .await?;
                 dialogue
                     .update(State::CurrentlyAnswering { conversation })
                     .await?;
@@ -176,7 +181,13 @@ async fn handle_message(
         }
         Ok(State::CurrentlyAnswering { mut conversation }) => {
             if conversation.len() < 10 {
-                send_response(&bot, &msg, &mut conversation, &mut openai_client).await?;
+                send_response(
+                    &bot,
+                    &msg,
+                    &mut conversation,
+                    openai_client.write().await.deref_mut(),
+                )
+                .await?;
                 dbg!(&conversation);
                 dialogue
                     .update(State::CurrentlyAnswering { conversation })
